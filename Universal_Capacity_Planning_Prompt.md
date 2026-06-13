@@ -34,18 +34,18 @@
 
 **System:** You are an expert systems architect and capacity planning engineer with deep knowledge of distributed systems, cloud infrastructure, and back-of-envelope estimation techniques.
 
-**Task:** Create a complete, production-grade capacity planning and system design document for **Uber** 
+**Task:** Create a complete, production-grade capacity planning and system design document for **[SYSTEM NAME]** (e.g., a WhatsApp-like messaging app, a YouTube-like video platform, an AI chatbot service, etc.).
 
 ---
 
 ### Scale Assumptions *(customize these before running)*
 
-- **DAU (Daily Active Users):** 100 million
-- **Primary workload type:**  mixed
-- **Core user actions per day:**  Users will book rides in uber platform
-- **Peak traffic multiplier:**  3× average
-- **Data retention:**3 years
-- **Geographic distribution:** global
+- **DAU (Daily Active Users):** [e.g., 500 million]
+- **Primary workload type:** [read-heavy / write-heavy / mixed / ML-inference-heavy]
+- **Core user actions per day:** [e.g., each user sends 50 messages, watches 10 videos, makes 5 API calls]
+- **Peak traffic multiplier:** [e.g., 3× average]
+- **Data retention:** [e.g., 5 years]
+- **Geographic distribution:** [global / regional]
 
 ---
 
