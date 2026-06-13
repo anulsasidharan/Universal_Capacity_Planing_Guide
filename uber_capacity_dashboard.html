@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uber — Capacity Planning Dashboard</title>
+<style>
+  :root {
+    --black: #0a0a0a;
+    --uber-black: #1a1a1a;
+    --surface: #111111;
+    --card: #181818;
+    --border: #2a2a2a;
+    --uber-green: #06c167;
+    --uber-green-dim: rgba(6,193,103,0.12);
+    --uber-green-glow: rgba(6,193,103,0.3);
+    --text: #f4f4f4;
+    --text-muted: #888;
+    --text-dim: #555;
+    --amber: #f5a623;
+    --red: #ff4444;
+    --blue: #4a9eff;
+    --purple: #9b59b6;
+    --font-mono: 'JetBrains Mono', 'Fira Mono', 'Courier New', monospace;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--black);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--uber-black);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    color: var(--text);
+  }
+
+  .logo span { color: var(--uber-green); }
+
+  .header-badge {
+    background: var(--uber-green-dim);
+    border: 1px solid var(--uber-green);
+    color: var(--uber-green);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .header-meta {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: var(--font-mono);
+  }
+
+  nav {
+    background: var(--uber-black);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+  }
+
+  nav button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+
+  nav button:hover { color: var(--text); }
+  nav button.active {
+    color: var(--uber-green);
+    border-bottom-color: var(--uber-green);
+  }
+
+  main { padding: 32px; max-width: 1400px; margin: 0 auto; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+
+  .section-desc {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .card-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .metric-big {
+    font-size: 32px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--uber-green);
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+
+  .metric-unit {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-family: var(--font-mono);
+  }
+
+  .metric-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+
+  /* Sliders */
+  .input-group { margin-bottom: 20px; }
+
+  .input-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  .input-label span:first-child { color: var(--text); font-weight: 500; }
+
+  .input-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--uber-green);
+    background: var(--uber-green-dim);
+    border: 1px solid var(--uber-green);
+    border-radius: 6px;
+    padding: 2px 10px;
+    min-width: 80px;
+    text-align: center;
+  }
+
+  input[type=range] {
+    width: 100%;
+    height: 4px;
+    appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--uber-green);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--uber-green-glow);
+  }
+
+  .readonly-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+
+  .readonly-row .key { color: var(--text-muted); font-size: 12px; }
+  .readonly-row .val {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--amber);
+    font-weight: 600;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  td.num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-align: right;
+    color: var(--uber-green);
+  }
+
+  td.peak {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-align: right;
+    color: var(--amber);
+  }
+
+  td.muted { color: var(--text-muted); font-size: 12px; }
+
+  tr.highlight { background: var(--uber-green-dim); }
+  tr.highlight td { color: var(--uber-green); font-weight: 600; }
+
+  /* Bar chart */
+  .bar-chart { margin-top: 16px; }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .bar-label {
+    width: 180px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 24px;
+    background: var(--surface);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--uber-green), #00a855);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--black);
+    transition: width 0.4s ease;
+    min-width: 60px;
+  }
+
+  .bar-fill.amber { background: linear-gradient(90deg, var(--amber), #e09000); }
+  .bar-fill.blue { background: linear-gradient(90deg, var(--blue), #2070cc); }
+  .bar-fill.purple { background: linear-gradient(90deg, var(--purple), #7d3c98); }
+  .bar-fill.red { background: linear-gradient(90deg, var(--red), #cc2200); }
+
+  /* Architecture */
+  .arch-layer {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+
+  .arch-layer-header {
+    background: var(--surface);
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--uber-green);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .arch-layer-body {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  .arch-layer-body strong { color: var(--text); }
+
+  .arch-icon { font-size: 16px; }
+
+  /* Pipeline */
+  .pipeline-step {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0;
+  }
+
+  /* Growth table */
+  td.x1 { color: var(--text-muted); }
+  td.x3 { color: var(--blue); font-weight: 600; }
+  td.x5 { color: var(--amber); font-weight: 600; }
+  td.x10 { color: var(--red); font-weight: 600; }
+
+
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+
+  .tag {
+    display: inline-block;
+    background: var(--uber-green-dim);
+    border: 1px solid var(--uber-green);
+    color: var(--uber-green);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  .tag.amber {
+    background: rgba(245,166,35,0.12);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  @media (max-width: 900px) {
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+  }
+  .export-btn {
+    margin-left: auto;
+    background: var(--uber-green);
+    color: var(--black);
+    border: none;
+    border-radius: 7px;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    letter-spacing: 0.3px;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .export-btn:hover { opacity: 0.82; }
+  .export-btn svg { flex-shrink: 0; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">UBER<span>.</span></div>
+  <div class="header-badge">Capacity Plan</div>
+  <div class="header-meta" id="headerMeta">DAU: 100M · Peak: 3× · Global</div>
+  <button class="export-btn" onclick="exportToExcel()">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5V12h10v-1.5M7 1v8M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Export to Excel
+  </button>
+</header>
+
+<nav>
+  <button class="active" onclick="switchTab(0)">⚙ Assumptions</button>
+  <button onclick="switchTab(1)">📡 Traffic & RPS</button>
+  <button onclick="switchTab(2)">💾 Storage</button>
+  <button onclick="switchTab(3)">🌐 Bandwidth</button>
+  <button onclick="switchTab(4)">🖥 Infrastructure</button>
+  <button onclick="switchTab(5)">💰 Cost</button>
+  <button onclick="switchTab(6)">📈 Growth</button>
+  <button onclick="switchTab(7)">🏗 Architecture</button>
+  <button onclick="switchTab(8)">🔄 Pipeline</button>
+
+</nav>
+
+<main>
+
+<!-- TAB 0: ASSUMPTIONS -->
+<div class="tab-content active" id="tab0">
+  <h2>Scale Assumptions & Inputs</h2>
+  <p class="section-desc">All downstream calculations update live as you adjust these parameters. Uber operates globally across ride-hailing, food delivery, and freight workloads.</p>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-title">User & Traffic Parameters</div>
+
+      <div class="input-group">
+        <div class="input-label"><span>Daily Active Users (DAU)</span><span class="input-value" id="v_dau">100M</span></div>
+        <input type="range" id="s_dau" min="10" max="500" value="100" step="10" oninput="update()">
+      </div>
+      <div class="input-group">
+        <div class="input-label"><span>Ride Booking Actions / User / Day</span><span class="input-value" id="v_writes">3</span></div>
+        <input type="range" id="s_writes" min="1" max="20" value="3" step="1" oninput="update()">
+      </div>
+      <div class="input-group">
+        <div class="input-label"><span>Read Actions / User / Day (map, ETA, status)</span><span class="input-value" id="v_reads">30</span></div>
+        <input type="range" id="s_reads" min="5" max="200" value="30" step="5" oninput="update()">
+      </div>
+      <div class="input-group">
+        <div class="input-label"><span>Peak Traffic Multiplier</span><span class="input-value" id="v_peak">3×</span></div>
+        <input type="range" id="s_peak" min="1.5" max="10" value="3" step="0.5" oninput="update()">
+      </div>
+      <div class="input-group">
+        <div class="input-label"><span>Cache Hit Rate (%)</span><span class="input-value" id="v_cache">85%</span></div>
+        <input type="range" id="s_cache" min="30" max="99" value="85" step="1" oninput="update()">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Data & Storage Parameters</div>
+
+      <div class="input-group">
+        <div class="input-label"><span>Avg Trip Record Size (KB)</span><span class="input-value" id="v_trip_size">5</span></div>
+        <input type="range" id="s_trip_size" min="1" max="50" value="5" step="1" oninput="update()">
+      </div>
+      <div class="input-group">
+        <div class="input-label"><span>Avg GPS Event Size (bytes)</span><span class="input-value" id="v_gps_size">64</span></div>
+        <input type="range" id="s_gps_size" min="32" max="256" value="64" step="8" oninput="update()">
+      </div>
+      <div class="input-group">
+        <div class="input-label"><span>GPS Events / Active Driver / Sec</span><span class="input-value" id="v_gps_rate">1</span></div>
+        <input type="range" id="s_gps_rate" min="1" max="5" value="1" step="1" oninput="update()">
+      </div>
+      <div class="input-group">
+        <div class="input-label"><span>Active Drivers (% of DAU)</span><span class="input-value" id="v_driver_pct">10%</span></div>
+        <input type="range" id="s_driver_pct" min="3" max="30" value="10" step="1" oninput="update()">
+      </div>
+      <div class="input-group">
+        <div class="input-label"><span>Replication Factor</span><span class="input-value" id="v_replication">3×</span></div>
+        <input type="range" id="s_replication" min="2" max="5" value="3" step="1" oninput="update()">
+      </div>
+      <div class="input-group">
+        <div class="input-label"><span>Data Retention (years)</span><span class="input-value" id="v_retention">3</span></div>
+        <input type="range" id="s_retention" min="1" max="10" value="3" step="1" oninput="update()">
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="card">
+    <div class="card-title">Derived Constants (Read-Only)</div>
+    <div class="grid grid-4" style="margin-top:8px">
+      <div class="readonly-row"><span class="key">MAU (30-day)</span><span class="val" id="c_mau">—</span></div>
+      <div class="readonly-row"><span class="key">Seconds / Day</span><span class="val">86,400</span></div>
+      <div class="readonly-row"><span class="key">Active Drivers</span><span class="val" id="c_drivers">—</span></div>
+      <div class="readonly-row"><span class="key">Avg Trip Duration (min)</span><span class="val">20</span></div>
+      <div class="readonly-row"><span class="key">Compression Ratio</span><span class="val">60%</span></div>
+      <div class="readonly-row"><span class="key">Metadata Overhead</span><span class="val">8%</span></div>
+      <div class="readonly-row"><span class="key">Max Shard Size</span><span class="val">500 GB</span></div>
+      <div class="readonly-row"><span class="key">Kafka Partition Throughput</span><span class="val">10K msg/s</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 1: TRAFFIC -->
+<div class="tab-content" id="tab1">
+  <h2>Traffic & RPS Analysis</h2>
+  <p class="section-desc">Uber's mixed workload combines ride booking (writes), real-time GPS ingestion (high-volume streaming), map/ETA reads, and surge pricing calculations.</p>
+
+  <div class="grid grid-4" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-title">Write RPS</div>
+      <div class="metric-big" id="m_write_rps">—</div>
+      <div class="metric-unit">requests/sec</div>
+      <div class="metric-label">Ride bookings, status updates</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Read RPS</div>
+      <div class="metric-big" id="m_read_rps" style="color:var(--blue)">—</div>
+      <div class="metric-unit">requests/sec</div>
+      <div class="metric-label">Maps, ETAs, driver location</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Peak Write RPS</div>
+      <div class="metric-big" id="m_peak_write" style="color:var(--amber)">—</div>
+      <div class="metric-unit">requests/sec</div>
+      <div class="metric-label">Friday evening surge</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Peak Read RPS</div>
+      <div class="metric-big" id="m_peak_read" style="color:var(--amber)">—</div>
+      <div class="metric-unit">requests/sec</div>
+      <div class="metric-label">Friday evening surge</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Full RPS Breakdown</div>
+    <table>
+      <thead><tr><th>Metric</th><th>Formula</th><th style="text-align:right">Avg</th><th style="text-align:right">Peak</th></tr></thead>
+      <tbody>
+        <tr><td>Booking Write RPS</td><td class="muted">(DAU × writes/user) / 86,400</td><td class="num" id="t_write_rps">—</td><td class="peak" id="t_peak_write">—</td></tr>
+        <tr><td>GPS Ingest RPS</td><td class="muted">drivers × GPS events/sec</td><td class="num" id="t_gps_rps">—</td><td class="peak" id="t_gps_peak">—</td></tr>
+        <tr><td>Read RPS (maps/ETA)</td><td class="muted">(DAU × reads/user) / 86,400</td><td class="num" id="t_read_rps">—</td><td class="peak" id="t_read_peak">—</td></tr>
+        <tr><td>Surge Pricing RPS</td><td class="muted">~5% of read RPS</td><td class="num" id="t_surge_rps">—</td><td class="peak" id="t_surge_peak">—</td></tr>
+        <tr class="highlight"><td><strong>Total RPS</strong></td><td class="muted">Sum of all</td><td class="num" id="t_total_rps">—</td><td class="peak" id="t_total_peak">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TAB 2: STORAGE -->
+<div class="tab-content" id="tab2">
+  <h2>Storage Estimation</h2>
+  <p class="section-desc">Uber stores trip records, GPS traces, maps tiles, user profiles, payments, and ML features. All figures include compression (60%), replication, and 8% metadata overhead.</p>
+
+  <div class="grid grid-3" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-title">Daily Raw Storage</div>
+      <div class="metric-big" id="m_daily_raw">—</div>
+      <div class="metric-unit">TB / day</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Annual (with replication)</div>
+      <div class="metric-big" id="m_annual" style="color:var(--amber)">—</div>
+      <div class="metric-unit">TB / year</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Retention Period Total</div>
+      <div class="metric-big" id="m_total_storage" style="color:var(--red)">—</div>
+      <div class="metric-unit">PB total</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Storage Breakdown by Type</div>
+    <table>
+      <thead><tr><th>Data Type</th><th>Daily Raw</th><th>After Compression</th><th>With Replication</th><th>Annual</th></tr></thead>
+      <tbody>
+        <tr><td>Trip Records</td><td class="num" id="st_trip_raw">—</td><td class="num" id="st_trip_comp">—</td><td class="num" id="st_trip_rep">—</td><td class="num" id="st_trip_ann">—</td></tr>
+        <tr><td>GPS Telemetry</td><td class="num" id="st_gps_raw">—</td><td class="num" id="st_gps_comp">—</td><td class="num" id="st_gps_rep">—</td><td class="num" id="st_gps_ann">—</td></tr>
+        <tr><td>Maps & Tiles (static)</td><td class="num">0.10 TB</td><td class="num">0.10 TB</td><td class="num">0.30 TB</td><td class="num">36.50 TB</td></tr>
+        <tr><td>User Profiles & Auth</td><td class="num" id="st_user_raw">—</td><td class="num" id="st_user_comp">—</td><td class="num" id="st_user_rep">—</td><td class="num" id="st_user_ann">—</td></tr>
+        <tr><td>ML Feature Store</td><td class="num">0.20 TB</td><td class="num">0.20 TB</td><td class="num">0.60 TB</td><td class="num">219.00 TB</td></tr>
+        <tr class="highlight"><td><strong>Total</strong></td><td class="num" id="st_total_raw">—</td><td class="num" id="st_total_comp">—</td><td class="num" id="st_total_rep">—</td><td class="num" id="st_total_ann">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TAB 3: BANDWIDTH -->
+<div class="tab-content" id="tab3">
+  <h2>Bandwidth & CDN</h2>
+  <p class="section-desc">Uber's read-heavy API traffic (maps, ETAs, app responses) drives most egress. GPS telemetry is inbound. CDN offloads static map tiles and app assets.</p>
+
+  <div class="grid grid-4" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-title">Total Egress</div>
+      <div class="metric-big" id="m_egress">—</div>
+      <div class="metric-unit">Gbps (peak)</div>
+    </div>
+    <div class="card">
+      <div class="card-title">CDN Offload</div>
+      <div class="metric-big" id="m_cdn" style="color:var(--uber-green)">—</div>
+      <div class="metric-unit">Gbps saved</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Origin Load</div>
+      <div class="metric-big" id="m_origin" style="color:var(--amber)">—</div>
+      <div class="metric-unit">Gbps to origin</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Daily Transfer</div>
+      <div class="metric-big" id="m_daily_bw" style="color:var(--blue)">—</div>
+      <div class="metric-unit">TB / day</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">CDN PoP Recommendations (Global)</div>
+    <table>
+      <thead><tr><th>Region</th><th>Key Cities</th><th>Recommended PoPs</th><th>Est. Traffic Share</th></tr></thead>
+      <tbody>
+        <tr><td>North America</td><td class="muted">NY, LA, Chicago, Toronto</td><td class="num">12</td><td class="num">35%</td></tr>
+        <tr><td>LATAM</td><td class="muted">São Paulo, Mexico City, Bogotá</td><td class="num">8</td><td class="num">15%</td></tr>
+        <tr><td>Europe</td><td class="muted">London, Amsterdam, Frankfurt</td><td class="num">10</td><td class="num">20%</td></tr>
+        <tr><td>Asia Pacific</td><td class="muted">Singapore, Tokyo, Sydney</td><td class="num">14</td><td class="num">22%</td></tr>
+        <tr><td>Middle East / Africa</td><td class="muted">Dubai, Nairobi, Lagos</td><td class="num">6</td><td class="num">8%</td></tr>
+        <tr class="highlight"><td><strong>Total</strong></td><td></td><td class="num">50</td><td class="num">100%</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TAB 4: INFRASTRUCTURE -->
+<div class="tab-content" id="tab4">
+  <h2>Database & Infrastructure Sizing</h2>
+  <p class="section-desc">Uber's polyglot persistence: PostgreSQL for trips/users, Cassandra for GPS/time-series, Redis for real-time driver locations, Kafka for event streaming, ElasticSearch for search.</p>
+
+  <div class="grid grid-3" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-title">DB Shards Required</div>
+      <div class="metric-big" id="m_shards">—</div>
+      <div class="metric-unit">shards (500 GB max each)</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Redis Working Set</div>
+      <div class="metric-big" id="m_redis" style="color:var(--blue)">—</div>
+      <div class="metric-unit">GB cache</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Kafka Partitions</div>
+      <div class="metric-big" id="m_kafka" style="color:var(--amber)">—</div>
+      <div class="metric-unit">partitions (GPS + bookings)</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Server Count by Tier</div>
+    <table>
+      <thead><tr><th>Tier</th><th>Role</th><th style="text-align:right">Count</th><th>Spec</th><th>Justification</th></tr></thead>
+      <tbody>
+        <tr><td>API Servers</td><td class="muted">REST / gRPC gateway</td><td class="num" id="inf_api">—</td><td class="muted">16 vCPU / 32 GB</td><td class="muted">Handle peak RPS with 70% CPU target</td></tr>
+        <tr><td>Trip DB (Postgres)</td><td class="muted">Primary + replicas</td><td class="num" id="inf_db">—</td><td class="muted">32 vCPU / 128 GB</td><td class="muted">1 primary + 2 read replicas per shard</td></tr>
+        <tr><td>GPS DB (Cassandra)</td><td class="muted">Time-series storage</td><td class="num" id="inf_cass">—</td><td class="muted">16 vCPU / 64 GB</td><td class="muted">Wide-column, write-optimized for GPS streams</td></tr>
+        <tr><td>Redis Cluster</td><td class="muted">Driver location cache</td><td class="num" id="inf_redis">—</td><td class="muted">8 vCPU / 64 GB RAM</td><td class="muted">Geo-spatial indexing for live driver tracking</td></tr>
+        <tr><td>Kafka Brokers</td><td class="muted">Event streaming</td><td class="num" id="inf_kafka">—</td><td class="muted">16 vCPU / 64 GB</td><td class="muted">3 replicas, GPS + booking event bus</td></tr>
+        <tr><td>Worker Nodes</td><td class="muted">Matching engine, pricing</td><td class="num" id="inf_workers">—</td><td class="muted">8 vCPU / 16 GB</td><td class="muted">CPU-bound matching algorithms</td></tr>
+        <tr><td>ML Inference</td><td class="muted">Surge pricing, ETA model</td><td class="num" id="inf_ml">—</td><td class="muted">GPU T4 / 16 GB VRAM</td><td class="muted">Real-time demand forecasting</td></tr>
+        <tr class="highlight"><td><strong>Total Nodes</strong></td><td></td><td class="num" id="inf_total">—</td><td></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TAB 5: COST -->
+<div class="tab-content" id="tab5">
+  <h2>Monthly Cost Estimation</h2>
+  <p class="section-desc">AWS-based pricing estimates (us-east-1 region). Assumes reserved instance pricing for stable workloads, on-demand for burst capacity.</p>
+
+  <div class="grid grid-3" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-title">Monthly Total</div>
+      <div class="metric-big" id="m_monthly">—</div>
+      <div class="metric-unit">USD / month</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Annual Total</div>
+      <div class="metric-big" id="m_annual_cost" style="color:var(--amber)">—</div>
+      <div class="metric-unit">USD / year</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Cost per DAU</div>
+      <div class="metric-big" id="m_per_dau" style="color:var(--blue)">—</div>
+      <div class="metric-unit">USD / user / month</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Cost Breakdown (Monthly)</div>
+    <div class="bar-chart" id="cost_chart">
+      <!-- dynamically populated -->
+    </div>
+  </div>
+</div>
+
+<!-- TAB 6: GROWTH -->
+<div class="tab-content" id="tab6">
+  <h2>Growth Scenarios</h2>
+  <p class="section-desc">All values scale from the baseline (1×) assuming linear growth in users. Infrastructure costs scale sub-linearly due to volume discounts and efficiency gains.</p>
+
+  <div class="card">
+    <div class="card-title">Scaling Table — All Key Metrics</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th style="text-align:right">1× (Baseline)</th>
+          <th style="text-align:right">3×</th>
+          <th style="text-align:right">5×</th>
+          <th style="text-align:right">10×</th>
+        </tr>
+      </thead>
+      <tbody id="growth_table">
+        <!-- populated by JS -->
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TAB 7: ARCHITECTURE -->
+<div class="tab-content" id="tab7">
+  <h2>Architecture Overview</h2>
+  <p class="section-desc">Uber's distributed microservices architecture handles real-time matching, geospatial computation, payment processing, and global event streaming at scale.</p>
+
+  <div class="arch-layer">
+    <div class="arch-layer-header"><span class="arch-icon">📱</span> Client Layer</div>
+    <div class="arch-layer-body">
+      <strong>iOS / Android / Web (React Native + Swift/Kotlin)</strong> — Native SDKs for GPS accuracy and offline resilience. SDK calls gRPC services for low-latency ride matching.
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-layer-header"><span class="arch-icon">🌍</span> CDN / Edge</div>
+    <div class="arch-layer-body">
+      <strong>Cloudflare + AWS CloudFront</strong> — Map tiles, static assets, and app bundles cached at 50+ PoPs globally. Edge compute (Cloudflare Workers) handles auth token validation and rate limiting without hitting origin.
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-layer-header"><span class="arch-icon">⚡</span> Load Balancer / API Gateway</div>
+    <div class="arch-layer-body">
+      <strong>AWS ALB + Kong API Gateway</strong> — Layer-7 load balancing across API fleet. Kong handles auth, rate limiting, request routing, and observability middleware. gRPC traffic proxied via Envoy.
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-layer-header"><span class="arch-icon">🔧</span> Application / Microservices Layer</div>
+    <div class="arch-layer-body">
+      <strong>Go + Python + Java (Kubernetes on EKS)</strong> — Key services:
+      <br><strong>Dispatch Service</strong> — Real-time driver-rider matching using Hungarian algorithm
+      <br><strong>Geo Service</strong> — H3 hexagonal grid for geospatial queries (driver availability)
+      <br><strong>Surge Pricing</strong> — Real-time ML demand/supply balancing
+      <br><strong>Trip Service</strong> — Trip lifecycle state machine (requested → active → completed)
+      <br><strong>Payments Service</strong> — PCI-DSS compliant, integrates Stripe + Braintree
+      <br><strong>Notification Service</strong> — Push (FCM/APNs), SMS (Twilio), email via SES
+      <br><strong>ETA Service</strong> — ML-powered arrival time predictions using historical + live traffic
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-layer-header"><span class="arch-icon">📨</span> Event Streaming / Async</div>
+    <div class="arch-layer-body">
+      <strong>Apache Kafka (MSK on AWS)</strong> — GPS telemetry, trip events, payment events all flow through Kafka. Flink processes GPS streams for real-time driver location aggregation. Enables decoupled microservices communication.
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-layer-header"><span class="arch-icon">🗄</span> Database Tier</div>
+    <div class="arch-layer-body">
+      <strong>PostgreSQL (RDS)</strong> — Trips, users, payments (ACID compliance required)<br>
+      <strong>Apache Cassandra</strong> — GPS traces, time-series data (write-optimized, geo-partitioned)<br>
+      <strong>Redis Cluster</strong> — Driver live location (geo-spatial), session cache, surge multipliers<br>
+      <strong>Elasticsearch</strong> — Address autocomplete, POI search, driver search<br>
+      <strong>S3 + Glacier</strong> — Trip receipts, audit logs, ML training data archival
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-layer-header"><span class="arch-icon">🤖</span> ML / AI Layer</div>
+    <div class="arch-layer-body">
+      <strong>AWS SageMaker + Vertex AI</strong> — ETA models, surge pricing models, driver fraud detection. Feature store (Feast) provides low-latency feature serving. Models retrained daily on Spark clusters.
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-layer-header"><span class="arch-icon">📊</span> Observability</div>
+    <div class="arch-layer-body">
+      <strong>Datadog + Prometheus + Grafana + PagerDuty</strong> — SLI/SLO tracking for matching latency (&lt;500ms p99), GPS ingest lag (&lt;1s), payment success rate (&gt;99.9%). Distributed tracing via Jaeger.
+    </div>
+  </div>
+</div>
+
+<!-- TAB 8: PIPELINE -->
+<div class="tab-content" id="tab8">
+  <h2>Pipeline Walkthrough — Ride Booking Flow</h2>
+  <p class="section-desc">End-to-end data flow from user tapping "Request Ride" to driver arrival and payment settlement. Each stage shows the tech stack, latency SLO, and key metric.</p>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Stage</th>
+          <th>Component</th>
+          <th>Tech Stack</th>
+          <th>Latency SLO</th>
+          <th>Key Metric</th>
+          <th>Handoff</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="muted">1</td>
+          <td><strong>User Request</strong></td>
+          <td class="muted">Mobile App</td>
+          <td class="muted">React Native, gRPC</td>
+          <td class="num">&lt;50ms</td>
+          <td class="muted">App → API roundtrip</td>
+          <td class="muted">→ API Gateway</td>
+        </tr>
+        <tr>
+          <td class="muted">2</td>
+          <td><strong>Auth & Rate Limit</strong></td>
+          <td class="muted">Kong Gateway</td>
+          <td class="muted">Kong, JWT, Redis</td>
+          <td class="num">&lt;10ms</td>
+          <td class="muted">Auth success rate</td>
+          <td class="muted">→ Dispatch Service</td>
+        </tr>
+        <tr>
+          <td class="muted">3</td>
+          <td><strong>Geo Lookup</strong></td>
+          <td class="muted">Geo Service</td>
+          <td class="muted">Go, H3, Redis GEO</td>
+          <td class="num">&lt;20ms</td>
+          <td class="muted">Nearby driver count</td>
+          <td class="muted">→ Matching Engine</td>
+        </tr>
+        <tr>
+          <td class="muted">4</td>
+          <td><strong>Driver Matching</strong></td>
+          <td class="muted">Dispatch Service</td>
+          <td class="muted">Go, Hungarian Algo</td>
+          <td class="num">&lt;100ms</td>
+          <td class="muted">Match rate, ETA accuracy</td>
+          <td class="muted">→ Trip Service</td>
+        </tr>
+        <tr>
+          <td class="muted">5</td>
+          <td><strong>Surge Pricing</strong></td>
+          <td class="muted">Pricing Service</td>
+          <td class="muted">Python, TensorFlow</td>
+          <td class="num">&lt;50ms</td>
+          <td class="muted">Price accuracy</td>
+          <td class="muted">→ Trip Service</td>
+        </tr>
+        <tr>
+          <td class="muted">6</td>
+          <td><strong>Trip Creation</strong></td>
+          <td class="muted">Trip Service</td>
+          <td class="muted">Java, PostgreSQL</td>
+          <td class="num">&lt;50ms</td>
+          <td class="muted">Trip record written</td>
+          <td class="muted">→ Kafka (trip.created)</td>
+        </tr>
+        <tr>
+          <td class="muted">7</td>
+          <td><strong>Notifications</strong></td>
+          <td class="muted">Notification Svc</td>
+          <td class="muted">Kafka, FCM, Twilio</td>
+          <td class="num">&lt;200ms</td>
+          <td class="muted">Delivery rate</td>
+          <td class="muted">→ Driver + Rider</td>
+        </tr>
+        <tr>
+          <td class="muted">8</td>
+          <td><strong>GPS Streaming</strong></td>
+          <td class="muted">Telemetry Svc</td>
+          <td class="muted">Kafka, Flink, Cassandra</td>
+          <td class="num">&lt;1s lag</td>
+          <td class="muted">GPS events/sec</td>
+          <td class="muted">→ Rider ETA updates</td>
+        </tr>
+        <tr>
+          <td class="muted">9</td>
+          <td><strong>Trip Completion</strong></td>
+          <td class="muted">Trip Service</td>
+          <td class="muted">Java, PostgreSQL</td>
+          <td class="num">&lt;100ms</td>
+          <td class="muted">Fare calculated</td>
+          <td class="muted">→ Payment Service</td>
+        </tr>
+        <tr>
+          <td class="muted">10</td>
+          <td><strong>Payment Settlement</strong></td>
+          <td class="muted">Payments Svc</td>
+          <td class="muted">Java, Stripe, PCI-DSS</td>
+          <td class="num">&lt;2s</td>
+          <td class="muted">Payment success rate</td>
+          <td class="muted">→ Receipt email</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+
+</main>
+
+<script>
+// ===== STATE =====
+let S = {};
+const $ = id => document.getElementById(id);
+
+function getState() {
+  S = {
+    dau: parseFloat($('s_dau').value) * 1e6,
+    writes: parseFloat($('s_writes').value),
+    reads: parseFloat($('s_reads').value),
+    peak: parseFloat($('s_peak').value),
+    cache: parseFloat($('s_cache').value) / 100,
+    trip_size: parseFloat($('s_trip_size').value) * 1024, // bytes
+    gps_size: parseFloat($('s_gps_size').value), // bytes
+    gps_rate: parseFloat($('s_gps_rate').value),
+    driver_pct: parseFloat($('s_driver_pct').value) / 100,
+    replication: parseFloat($('s_replication').value),
+    retention: parseFloat($('s_retention').value),
+  };
+  S.drivers = S.dau * S.driver_pct;
+  S.mau = S.dau * 30;
+  S.compression = 0.6;
+  S.metadata = 1.08;
+  S.avg_response = 2048; // bytes per API response
+}
+
+function fmt(n, dec=0) {
+  if (n >= 1e12) return (n/1e12).toFixed(dec || 2) + ' T';
+  if (n >= 1e9) return (n/1e9).toFixed(dec || 2) + ' B';
+  if (n >= 1e6) return (n/1e6).toFixed(dec || 1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(dec || 1) + 'K';
+  return n.toFixed(dec);
+}
+
+function fmtDau(n) {
+  return (n/1e6).toFixed(0) + 'M';
+}
+
+function update() {
+  getState();
+
+  // Slider labels
+  $('v_dau').textContent = fmtDau(S.dau);
+  $('v_writes').textContent = $('s_writes').value;
+  $('v_reads').textContent = $('s_reads').value;
+  $('v_peak').textContent = S.peak.toFixed(1) + '×';
+  $('v_cache').textContent = ($('s_cache').value) + '%';
+  $('v_trip_size').textContent = $('s_trip_size').value;
+  $('v_gps_size').textContent = $('s_gps_size').value;
+  $('v_gps_rate').textContent = S.gps_rate;
+  $('v_driver_pct').textContent = $('s_driver_pct').value + '%';
+  $('v_replication').textContent = S.replication + '×';
+  $('v_retention').textContent = S.retention;
+
+  // Header
+  $('headerMeta').textContent = `DAU: ${fmtDau(S.dau)} · Peak: ${S.peak}× · Global`;
+
+  // Derived
+  $('c_mau').textContent = fmtDau(S.mau);
+  $('c_drivers').textContent = fmt(S.drivers);
+
+  // ===== TRAFFIC =====
+  const write_rps = Math.round((S.dau * S.writes) / 86400);
+  const gps_rps = Math.round(S.drivers * S.gps_rate);
+  const read_rps = Math.round((S.dau * S.reads) / 86400);
+  const surge_rps = Math.round(read_rps * 0.05);
+  const total_rps = write_rps + gps_rps + read_rps + surge_rps;
+
+  const pw = Math.round(write_rps * S.peak);
+  const pg = Math.round(gps_rps * S.peak);
+  const pr = Math.round(read_rps * S.peak);
+  const ps = Math.round(surge_rps * S.peak);
+  const pt = Math.round(total_rps * S.peak);
+
+  $('m_write_rps').textContent = fmt(write_rps);
+  $('m_read_rps').textContent = fmt(read_rps);
+  $('m_peak_write').textContent = fmt(pw);
+  $('m_peak_read').textContent = fmt(pr);
+
+  $('t_write_rps').textContent = fmt(write_rps);
+  $('t_peak_write').textContent = fmt(pw);
+  $('t_gps_rps').textContent = fmt(gps_rps);
+  $('t_gps_peak').textContent = fmt(pg);
+  $('t_read_rps').textContent = fmt(read_rps);
+  $('t_read_peak').textContent = fmt(pr);
+  $('t_surge_rps').textContent = fmt(surge_rps);
+  $('t_surge_peak').textContent = fmt(ps);
+  $('t_total_rps').textContent = fmt(total_rps);
+  $('t_total_peak').textContent = fmt(pt);
+
+  // ===== STORAGE =====
+  const bytes_per_tb = 1e12;
+
+  // Trip records
+  const trips_per_day = S.dau * S.writes;
+  const trip_raw_bytes = trips_per_day * S.trip_size;
+  const trip_comp = trip_raw_bytes * (1 - S.compression);
+  const trip_rep = trip_comp * S.replication * S.metadata;
+  const trip_ann = trip_rep * 365;
+
+  // GPS
+  const gps_events_day = S.drivers * S.gps_rate * 86400 * 0.3; // assume 30% active at once
+  const gps_raw_bytes = gps_events_day * S.gps_size;
+  const gps_comp = gps_raw_bytes * (1 - S.compression);
+  const gps_rep = gps_comp * S.replication * S.metadata;
+  const gps_ann = gps_rep * 365;
+
+  // User profiles
+  const user_raw_bytes = S.dau * 0.5 * 1024; // 0.5 KB new users/day approx
+  const user_comp = user_raw_bytes * (1 - S.compression);
+  const user_rep = user_comp * S.replication * S.metadata;
+  const user_ann = user_rep * 365;
+
+  const static_rep = 0.3e12; // 300 GB
+  const ml_rep = 0.6e12;
+
+  const total_daily_rep = trip_rep + gps_rep + user_rep + static_rep + ml_rep;
+  const total_ann = trip_ann + gps_ann + user_ann + (0.3e12*365) + (0.6e12*365);
+  const total_storage = total_ann * S.retention;
+
+  $('m_daily_raw').textContent = ((trip_raw_bytes + gps_raw_bytes + user_raw_bytes)/bytes_per_tb).toFixed(2);
+  $('m_annual').textContent = (total_ann/bytes_per_tb).toFixed(2);
+  $('m_total_storage').textContent = (total_storage/1e15).toFixed(2);
+
+  const tb = v => (v/bytes_per_tb).toFixed(2) + ' TB';
+  $('st_trip_raw').textContent = tb(trip_raw_bytes);
+  $('st_trip_comp').textContent = tb(trip_comp);
+  $('st_trip_rep').textContent = tb(trip_rep);
+  $('st_trip_ann').textContent = tb(trip_ann);
+  $('st_gps_raw').textContent = tb(gps_raw_bytes);
+  $('st_gps_comp').textContent = tb(gps_comp);
+  $('st_gps_rep').textContent = tb(gps_rep);
+  $('st_gps_ann').textContent = tb(gps_ann);
+  $('st_user_raw').textContent = tb(user_raw_bytes);
+  $('st_user_comp').textContent = tb(user_comp);
+  $('st_user_rep').textContent = tb(user_rep);
+  $('st_user_ann').textContent = tb(user_ann);
+  $('st_total_raw').textContent = tb(trip_raw_bytes + gps_raw_bytes + user_raw_bytes);
+  $('st_total_comp').textContent = tb(trip_comp + gps_comp + user_comp);
+  $('st_total_rep').textContent = tb(total_daily_rep);
+  $('st_total_ann').textContent = tb(total_ann);
+
+  // ===== BANDWIDTH =====
+  const egress_bps = pt * S.avg_response * 8; // bits/sec
+  const egress_gbps = egress_bps / 1e9;
+  const cdn_gbps = egress_gbps * S.cache;
+  const origin_gbps = egress_gbps * (1 - S.cache);
+  const daily_tb_bw = (egress_bps / 8 * 86400) / bytes_per_tb;
+
+  $('m_egress').textContent = egress_gbps.toFixed(2);
+  $('m_cdn').textContent = cdn_gbps.toFixed(2);
+  $('m_origin').textContent = origin_gbps.toFixed(2);
+  $('m_daily_bw').textContent = daily_tb_bw.toFixed(2);
+
+  // ===== INFRASTRUCTURE =====
+  const total_data_tb = total_ann / bytes_per_tb;
+  const shards = Math.ceil(total_data_tb / 500);
+  const redis_gb = Math.ceil((S.dau * 2048) / 1e9); // 2KB hot data per user
+  const kafka_partitions = Math.ceil(pt / 10000);
+
+  const rps_per_api = 1000;
+  const api_servers = Math.ceil(pt / rps_per_api);
+  const db_nodes = shards * 3; // 1 primary + 2 replicas
+  const cass_nodes = Math.max(12, Math.ceil(gps_rep * 1e-12 / 0.5 * 3));
+  const redis_nodes = Math.ceil(redis_gb / 48) * 3; // 48GB nodes, 3-way cluster
+  const kafka_brokers = Math.max(6, Math.ceil(kafka_partitions / 50) * 3);
+  const workers = Math.ceil(pt / 5000);
+  const ml_nodes = 4; // 4 GPU nodes for inference
+  const total_nodes = api_servers + db_nodes + cass_nodes + redis_nodes + kafka_brokers + workers + ml_nodes;
+
+  $('m_shards').textContent = shards;
+  $('m_redis').textContent = redis_gb;
+  $('m_kafka').textContent = kafka_partitions;
+  $('inf_api').textContent = api_servers;
+  $('inf_db').textContent = db_nodes;
+  $('inf_cass').textContent = cass_nodes;
+  $('inf_redis').textContent = redis_nodes;
+  $('inf_kafka').textContent = kafka_brokers;
+  $('inf_workers').textContent = workers;
+  $('inf_ml').textContent = ml_nodes;
+  $('inf_total').textContent = total_nodes;
+
+  // ===== COST =====
+  const cost_compute = api_servers * 0.3 * 720 + workers * 0.15 * 720;
+  const cost_db = db_nodes * 2.5 * 720 + cass_nodes * 1.8 * 720;
+  const cost_storage = (total_data_tb / 1000) * 23; // $23/TB/month S3
+  const cost_bw = daily_tb_bw * 30 * 9; // $9/TB egress
+  const cost_cdn = (cdn_gbps * 86400 * 30 / 8 / 1e12) * 8500; // ~$8500/TB CDN
+  const cost_kafka = kafka_brokers * 0.5 * 720;
+  const cost_redis = redis_nodes * 0.4 * 720;
+  const cost_ml = ml_nodes * 1.5 * 720; // GPU T4
+
+  const monthly = Math.round(cost_compute + cost_db + cost_storage + cost_bw + cost_cdn + cost_kafka + cost_redis + cost_ml);
+  const annual = monthly * 12;
+  const per_dau = monthly / (S.dau / 1e6);
+
+  $('m_monthly').textContent = '$' + fmt(monthly);
+  $('m_annual_cost').textContent = '$' + fmt(annual);
+  $('m_per_dau').textContent = '$' + per_dau.toFixed(2);
+
+  // Cost chart
+  const costs = [
+    { label: 'Compute (API + Workers)', val: Math.round(cost_compute), color: '' },
+    { label: 'Database (Postgres + Cassandra)', val: Math.round(cost_db), color: 'amber' },
+    { label: 'Storage (S3)', val: Math.round(cost_storage), color: 'blue' },
+    { label: 'Bandwidth / Egress', val: Math.round(cost_bw), color: 'purple' },
+    { label: 'CDN', val: Math.round(cost_cdn), color: '' },
+    { label: 'Kafka (MSK)', val: Math.round(cost_kafka), color: 'amber' },
+    { label: 'Redis (ElastiCache)', val: Math.round(cost_redis), color: 'blue' },
+    { label: 'GPU (ML Inference)', val: Math.round(cost_ml), color: 'purple' },
+  ];
+
+  const maxCost = Math.max(...costs.map(c => c.val));
+  $('cost_chart').innerHTML = costs.map(c => `
+    <div class="bar-row">
+      <div class="bar-label">${c.label}</div>
+      <div class="bar-track">
+        <div class="bar-fill ${c.color}" style="width:${Math.max(5, (c.val/maxCost)*100)}%">
+          $${fmt(c.val)}
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  // ===== GROWTH TABLE =====
+  const growthMetrics = [
+    { label: 'DAU', base: S.dau / 1e6, unit: 'M users' },
+    { label: 'Write RPS (avg)', base: write_rps, unit: 'req/s' },
+    { label: 'Read RPS (avg)', base: read_rps, unit: 'req/s' },
+    { label: 'GPS Ingest RPS', base: gps_rps, unit: 'events/s' },
+    { label: 'Peak Total RPS', base: pt, unit: 'req/s' },
+    { label: 'Daily Storage (raw)', base: (trip_raw_bytes + gps_raw_bytes) / bytes_per_tb, unit: 'TB' },
+    { label: 'Annual Storage', base: total_ann / bytes_per_tb, unit: 'TB' },
+    { label: 'Peak Egress', base: egress_gbps, unit: 'Gbps' },
+    { label: 'API Servers', base: api_servers, unit: 'nodes' },
+    { label: 'DB Nodes', base: db_nodes, unit: 'nodes' },
+    { label: 'Kafka Partitions', base: kafka_partitions, unit: '' },
+    { label: 'Monthly Cost', base: monthly, unit: 'USD', dollar: true },
+  ];
+
+  const mults = [1, 3, 5, 10];
+  const classes = ['x1', 'x3', 'x5', 'x10'];
+
+  $('growth_table').innerHTML = growthMetrics.map(m => `
+    <tr>
+      <td>${m.label}</td>
+      ${mults.map((mult, i) => {
+        const v = m.base * mult;
+        let display;
+        if (m.dollar) display = '$' + fmt(v);
+        else if (v >= 1e6) display = fmt(v) + ' ' + m.unit;
+        else if (m.unit === 'TB' && v > 1000) display = (v/1000).toFixed(2) + ' PB';
+        else display = v.toFixed(v < 10 ? 2 : 0) + ' ' + m.unit;
+        return `<td class="${classes[i]}" style="text-align:right;font-family:var(--font-mono);font-size:12px">${display}</td>`;
+      }).join('')}
+    </tr>
+  `).join('');
+}
+
+// ===== TABS =====
+const tabs = document.querySelectorAll('.tab-content');
+const navBtns = document.querySelectorAll('nav button');
+
+function switchTab(i) {
+  tabs.forEach((t, idx) => t.classList.toggle('active', idx === i));
+  navBtns.forEach((b, idx) => b.classList.toggle('active', idx === i));
+}
+
+
+// ===== EXPORT TO EXCEL =====
+function exportToExcel() {
+  getState();
+  const wb = XLSX.utils.book_new();
+
+  // ── helpers ──
+  const pct = v => (v * 100).toFixed(1) + '%';
+  const num = (v, d=2) => parseFloat(v.toFixed(d));
+
+  // recalculate all metrics (mirrors update())
+  const write_rps  = (S.dau * S.writes) / 86400;
+  const gps_rps    = S.drivers * S.gps_rate * 0.3;
+  const read_rps   = (S.dau * S.reads)  / 86400;
+  const surge_rps  = read_rps * 0.05;
+  const total_rps  = write_rps + gps_rps + read_rps + surge_rps;
+  const pw = write_rps * S.peak, pr = read_rps * S.peak;
+  const pg = gps_rps * S.peak,   pt = total_rps * S.peak;
+
+  const TB = 1e12;
+  const trips_day      = S.dau * S.writes;
+  const trip_raw       = trips_day * S.trip_size;
+  const gps_raw        = S.drivers * S.gps_rate * 0.3 * 86400 * S.gps_size;
+  const user_raw       = S.dau * 0.5 * 1024;
+  const daily_raw      = (trip_raw + gps_raw + user_raw) / TB;
+  const daily_comp     = daily_raw * 0.4;
+  const daily_rep      = daily_comp * S.replication;
+  const daily_final    = daily_rep * 1.08;
+  const annual         = daily_final * 365;
+  const total_stor     = annual * S.retention;
+
+  const egress_gbps    = pt * S.avg_response * 8 / 1e9;
+  const cdn_gbps       = egress_gbps * S.cache;
+  const origin_gbps    = egress_gbps * (1 - S.cache);
+  const daily_bw_tb    = egress_gbps * 86400 / 8 / 1000;
+
+  const shards         = Math.ceil(total_stor / 500);
+  const redis_gb       = Math.ceil(S.dau * 2048 / 1e9);
+  const kafka_parts    = Math.ceil(pt / 10000);
+  const api_nodes      = Math.ceil(pt / 1000);
+  const db_nodes       = shards * 3;
+  const cass_nodes     = Math.max(12, Math.ceil((gps_raw / TB) * 365 * S.replication / 500) * 3);
+  const redis_nodes    = Math.ceil(redis_gb / 48) * 3;
+  const kafka_nodes    = Math.max(6, Math.ceil(kafka_parts / 50) * 3);
+  const worker_nodes   = Math.ceil(pt / 5000);
+  const gpu_nodes      = 4;
+  const total_nodes    = api_nodes + db_nodes + cass_nodes + redis_nodes + kafka_nodes + worker_nodes + gpu_nodes;
+
+  const c_compute = api_nodes * 0.30 * 720 + worker_nodes * 0.15 * 720;
+  const c_db      = db_nodes * 2.50 * 720;
+  const c_cass    = cass_nodes * 1.80 * 720;
+  const c_stor    = (total_stor / 1000) * 23;
+  const c_bw      = daily_bw_tb * 30 * 9;
+  const c_gpu     = gpu_nodes * 1.50 * 720;
+  const c_kafka   = kafka_nodes * 0.50 * 720;
+  const c_redis   = redis_nodes * 0.40 * 720;
+  const monthly   = c_compute + c_db + c_cass + c_stor + c_bw + c_gpu + c_kafka + c_redis;
+  const annual_cost = monthly * 12;
+
+  // ── Sheet 1: Assumptions ──
+  const sheetInputs = [
+    ['UBER CAPACITY PLAN — Inputs & Assumptions', ''],
+    ['Generated', new Date().toLocaleString()],
+    ['', ''],
+    ['Parameter', 'Value', 'Unit'],
+    ['DAU', S.dau / 1e6, 'M users'],
+    ['Write Actions / User / Day', S.writes, 'writes/user/day'],
+    ['Read Actions / User / Day', S.reads, 'reads/user/day'],
+    ['Peak Traffic Multiplier', S.peak, '×'],
+    ['Cache Hit Rate', pct(S.cache), ''],
+    ['Active Drivers (% of DAU)', pct(S.driver_pct), ''],
+    ['Avg Trip Record Size', S.trip_size / 1024, 'KB'],
+    ['Avg GPS Event Size', S.gps_size, 'bytes'],
+    ['GPS Events / Driver / Sec', S.gps_rate, 'events/sec'],
+    ['Replication Factor', S.replication, '×'],
+    ['Data Retention', S.retention, 'years'],
+    ['Avg API Response Size', S.avg_response, 'bytes'],
+    ['', ''],
+    ['Derived Constants', '', ''],
+    ['MAU (30-day)', S.mau / 1e6, 'M users'],
+    ['Active Drivers', S.drivers / 1e6, 'M drivers'],
+    ['Seconds / Day', 86400, 'sec'],
+    ['Compression Savings', '60%', ''],
+    ['Metadata Overhead', '8%', ''],
+    ['Max Shard Size', 500, 'GB'],
+    ['Kafka Partition Throughput', '10,000', 'msg/sec'],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetInputs), 'Assumptions');
+
+  // ── Sheet 2: Traffic ──
+  const sheetTraffic = [
+    ['TRAFFIC & RPS ANALYSIS', ''],
+    ['', ''],
+    ['Metric', 'Avg', 'Peak', 'Unit'],
+    ['Write RPS (bookings)', num(write_rps, 0), num(pw, 0), 'req/s'],
+    ['Read RPS (maps/ETA)', num(read_rps, 0), num(pr, 0), 'req/s'],
+    ['GPS Ingest RPS', num(gps_rps, 0), num(pg, 0), 'events/s'],
+    ['Surge Pricing RPS', num(surge_rps, 0), num(surge_rps * S.peak, 0), 'req/s'],
+    ['TOTAL RPS', num(total_rps, 0), num(pt, 0), 'req/s'],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetTraffic), 'Traffic');
+
+  // ── Sheet 3: Storage ──
+  const sheetStorage = [
+    ['STORAGE ESTIMATION', ''],
+    ['', ''],
+    ['Metric', 'Value', 'Unit'],
+    ['Daily Raw Storage', num(daily_raw), 'TB'],
+    ['Daily Compressed (60% savings)', num(daily_comp), 'TB'],
+    ['Daily with Replication', num(daily_rep), 'TB'],
+    ['Daily with Metadata Overhead', num(daily_final), 'TB'],
+    ['Annual Storage Growth', num(annual), 'TB'],
+    ['Retention Period Total', num(total_stor), 'TB'],
+    ['5-Year Cumulative', num(annual * 5), 'TB'],
+    ['', ''],
+    ['By Data Type', 'Daily Raw (TB)', 'Annual (TB)', ''],
+    ['Trip Records', num(trip_raw / TB), num(trip_raw / TB * 365), ''],
+    ['GPS Telemetry', num(gps_raw / TB), num(gps_raw / TB * 365), ''],
+    ['User Profiles', num(user_raw / TB), num(user_raw / TB * 365), ''],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetStorage), 'Storage');
+
+  // ── Sheet 4: Bandwidth ──
+  const sheetBW = [
+    ['BANDWIDTH & CDN', ''],
+    ['', ''],
+    ['Metric', 'Value', 'Unit'],
+    ['Peak Egress Bandwidth', num(egress_gbps), 'Gbps'],
+    ['CDN Offload', num(cdn_gbps), 'Gbps'],
+    ['Origin Bandwidth', num(origin_gbps), 'Gbps'],
+    ['Daily Data Transferred', num(daily_bw_tb), 'TB/day'],
+    ['', ''],
+    ['CDN PoP Recommendations', '', ''],
+    ['Region', 'PoPs', 'Traffic Share'],
+    ['North America', 12, '35%'],
+    ['LATAM', 8, '15%'],
+    ['Europe', 10, '20%'],
+    ['Asia Pacific', 14, '22%'],
+    ['Middle East / Africa', 6, '8%'],
+    ['Total', 50, '100%'],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetBW), 'Bandwidth');
+
+  // ── Sheet 5: Infrastructure ──
+  const sheetInfra = [
+    ['INFRASTRUCTURE SIZING', ''],
+    ['', ''],
+    ['Metric', 'Value', 'Unit'],
+    ['DB Shard Count', shards, 'shards'],
+    ['Redis Working Set', redis_gb, 'GB'],
+    ['Kafka Partitions', kafka_parts, 'partitions'],
+    ['', ''],
+    ['Tier', 'Nodes', 'Spec'],
+    ['API Servers', api_nodes, '16 vCPU / 32 GB'],
+    ['DB Nodes (Postgres)', db_nodes, '32 vCPU / 128 GB'],
+    ['Cassandra Nodes', cass_nodes, '16 vCPU / 64 GB'],
+    ['Redis Nodes', redis_nodes, '8 vCPU / 64 GB RAM'],
+    ['Kafka Brokers', kafka_nodes, '16 vCPU / 64 GB'],
+    ['Worker Nodes', worker_nodes, '8 vCPU / 16 GB'],
+    ['GPU Nodes (ML)', gpu_nodes, 'T4 / 16 GB VRAM'],
+    ['TOTAL NODES', total_nodes, 'nodes'],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetInfra), 'Infrastructure');
+
+  // ── Sheet 6: Cost ──
+  const sheetCost = [
+    ['COST ESTIMATION (Monthly)', ''],
+    ['', ''],
+    ['Component', 'Monthly (USD)', ''],
+    ['Compute — API + Workers', num(c_compute, 0), ''],
+    ['Database — Postgres RDS', num(c_db, 0), ''],
+    ['Database — Cassandra EC2', num(c_cass, 0), ''],
+    ['Storage — S3', num(c_stor, 0), ''],
+    ['Bandwidth / Egress', num(c_bw, 0), ''],
+    ['GPU (ML Inference)', num(c_gpu, 0), ''],
+    ['Kafka (MSK)', num(c_kafka, 0), ''],
+    ['Redis (ElastiCache)', num(c_redis, 0), ''],
+    ['TOTAL MONTHLY', num(monthly, 0), 'USD'],
+    ['TOTAL ANNUAL', num(annual_cost, 0), 'USD'],
+    ['Cost per DAU per Month', num(monthly / (S.dau / 1e6), 4), 'USD/user/month'],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetCost), 'Cost');
+
+  // ── Sheet 7: Growth Scenarios ──
+  const growthHeader = ['Metric', '1× (Baseline)', '3×', '5×', '10×', 'Unit'];
+  const gRows = [
+    ['DAU', S.dau/1e6, S.dau*3/1e6, S.dau*5/1e6, S.dau*10/1e6, 'M users'],
+    ['Write RPS', num(write_rps,0), num(write_rps*3,0), num(write_rps*5,0), num(write_rps*10,0), 'req/s'],
+    ['Read RPS', num(read_rps,0), num(read_rps*3,0), num(read_rps*5,0), num(read_rps*10,0), 'req/s'],
+    ['GPS Ingest RPS', num(gps_rps,0), num(gps_rps*3,0), num(gps_rps*5,0), num(gps_rps*10,0), 'events/s'],
+    ['Peak Total RPS', num(pt,0), num(pt*3,0), num(pt*5,0), num(pt*10,0), 'req/s'],
+    ['Daily Storage (raw)', num(daily_raw), num(daily_raw*3), num(daily_raw*5), num(daily_raw*10), 'TB'],
+    ['Annual Storage', num(annual), num(annual*3), num(annual*5), num(annual*10), 'TB'],
+    ['Peak Egress', num(egress_gbps), num(egress_gbps*3), num(egress_gbps*5), num(egress_gbps*10), 'Gbps'],
+    ['API Servers', api_nodes, api_nodes*3, api_nodes*5, api_nodes*10, 'nodes'],
+    ['Total Nodes', total_nodes, total_nodes*3, total_nodes*5, total_nodes*10, 'nodes'],
+    ['Monthly Cost ($)', num(monthly,0), num(monthly*3,0), num(monthly*5,0), num(monthly*10,0), 'USD'],
+    ['Annual Cost ($)', num(annual_cost,0), num(annual_cost*3,0), num(annual_cost*5,0), num(annual_cost*10,0), 'USD'],
+  ];
+  XLSX.utils.book_append_sheet(wb,
+    XLSX.utils.aoa_to_sheet([growthHeader, ...gRows]),
+    'Growth Scenarios'
+  );
+
+  // ── Download ──
+  const dau_label = (S.dau/1e6).toFixed(0) + 'M';
+  XLSX.writeFile(wb, `Uber_CapacityPlan_${dau_label}DAU_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ===== INIT =====
+update();
+</script>
+</body>
+</html>
